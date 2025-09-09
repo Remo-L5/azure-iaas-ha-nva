@@ -88,6 +88,14 @@ module "iaas_nva" {
   }
   tags = var.tags
 
+  diagnostic_settings = {
+    vm_diags = {
+      name                  = module.naming.monitor_diagnostic_setting.name_unique
+      workspace_resource_id = var.log_analytics_workspace_resource_id
+      metric_categories     = ["AllMetrics"]
+    }
+  }
+
 }
 
 module "slb_external" {
@@ -170,6 +178,16 @@ module "slb_external" {
       floating_ip_enabled             = false
       idle_timeout_in_minutes        = 4
       load_distribution              = "Default"
+    }
+  }
+
+  diagnostic_settings = {
+    default = {
+      name                                     = "default"
+      log_groups                               = ["allLogs"]
+      metric_categories                        = ["AllMetrics"]
+      log_analytics_destination_type           = "Dedicated"
+      workspace_resource_id                    = var.log_analytics_workspace_resource_id
     }
   }
 
@@ -258,4 +276,99 @@ module "slb_internal" {
     }
   }
 
+  diagnostic_settings = {
+    default = {
+      name                                     = "default"
+      log_groups                               = ["allLogs"]
+      metric_categories                        = ["AllMetrics"]
+      log_analytics_destination_type           = "Dedicated"
+      workspace_resource_id                    = var.log_analytics_workspace_resource_id
+    }
+  }
+
+}
+
+# Data Collection Rule for VM Performance Monitoring
+resource "azurerm_monitor_data_collection_rule" "vm_performance" {
+  name                = "dcr-vmperf-${local.component_name}"
+  resource_group_name = module.resource_group.name
+  location            = var.location
+  tags                = var.tags
+
+  destinations {
+    log_analytics {
+      workspace_resource_id = var.log_analytics_workspace_resource_id
+      name                  = "log-analytics-dest"
+    }
+  }
+
+  data_flow {
+    streams      = ["Microsoft-Perf", "Microsoft-InsightsMetrics"]
+    destinations = ["log-analytics-dest"]
+  }
+
+  data_sources {
+    performance_counter {
+      streams                       = ["Microsoft-Perf", "Microsoft-InsightsMetrics"]
+      sampling_frequency_in_seconds = 60
+      counter_specifiers = [
+        "\\Processor Information(_Total)\\% Processor Time",
+        "\\Processor Information(_Total)\\% Privileged Time",
+        "\\Processor Information(_Total)\\% User Time",
+        "\\Processor Information(_Total)\\Processor Frequency",
+        "\\System\\Processes",
+        "\\Process(_Total)\\Thread Count",
+        "\\Process(_Total)\\Handle Count",
+        "\\System\\System Up Time",
+        "\\System\\Context Switches/sec",
+        "\\System\\Processor Queue Length",
+        "\\Memory\\% Committed Bytes In Use",
+        "\\Memory\\Available Bytes",
+        "\\Memory\\Committed Bytes",
+        "\\Memory\\Cache Bytes",
+        "\\Memory\\Pool Paged Bytes",
+        "\\Memory\\Pool Nonpaged Bytes",
+        "\\Memory\\Pages/sec",
+        "\\Memory\\Page Faults/sec",
+        "\\Memory\\Page Reads/sec",
+        "\\Memory\\Page Writes/sec",
+        "\\LogicalDisk(_Total)\\% Disk Time",
+        "\\LogicalDisk(_Total)\\% Disk Read Time",
+        "\\LogicalDisk(_Total)\\% Disk Write Time",
+        "\\LogicalDisk(_Total)\\% Idle Time",
+        "\\LogicalDisk(_Total)\\Disk Bytes/sec",
+        "\\LogicalDisk(_Total)\\Disk Read Bytes/sec",
+        "\\LogicalDisk(_Total)\\Disk Write Bytes/sec",
+        "\\LogicalDisk(_Total)\\Disk Transfers/sec",
+        "\\LogicalDisk(_Total)\\Disk Reads/sec",
+        "\\LogicalDisk(_Total)\\Disk Writes/sec",
+        "\\LogicalDisk(_Total)\\Avg. Disk sec/Transfer",
+        "\\LogicalDisk(_Total)\\Avg. Disk sec/Read",
+        "\\LogicalDisk(_Total)\\Avg. Disk sec/Write",
+        "\\LogicalDisk(_Total)\\Avg. Disk Queue Length",
+        "\\LogicalDisk(_Total)\\Avg. Disk Read Queue Length",
+        "\\LogicalDisk(_Total)\\Avg. Disk Write Queue Length",
+        "\\LogicalDisk(_Total)\\% Free Space",
+        "\\LogicalDisk(_Total)\\Free Megabytes",
+        "\\Network Interface(*)\\Bytes Total/sec",
+        "\\Network Interface(*)\\Bytes Sent/sec",
+        "\\Network Interface(*)\\Bytes Received/sec",
+        "\\Network Interface(*)\\Packets/sec",
+        "\\Network Interface(*)\\Packets Sent/sec",
+        "\\Network Interface(*)\\Packets Received/sec",
+        "\\Network Interface(*)\\Packets Outbound Errors",
+        "\\Network Interface(*)\\Packets Received Errors"
+      ]
+      name = "perfCounterDataSource60"
+    }
+  }
+}
+
+# Data Collection Rule Association for Virtual Machines
+resource "azurerm_monitor_data_collection_rule_association" "vm_dcr_association" {
+  for_each = var.node_configuration
+
+  name                    = "dcra-vm-${each.value.sequence_suffix}"
+  target_resource_id      = module.iaas_nva[each.key].resource_id
+  data_collection_rule_id = azurerm_monitor_data_collection_rule.vm_performance[0].id
 }

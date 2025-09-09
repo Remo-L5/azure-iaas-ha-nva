@@ -77,3 +77,19 @@ variable "enable_telemetry" {
   type        = bool
   default     = false
 }
+
+variable "log_analytics_workspace_resource_id" {
+  description = "The resource ID of the Log Analytics workspace for diagnostic logs and monitoring"
+  type        = string
+  default     = null
+}
+
+variable "diagnostic_log_retention_days" {
+  description = "Number of days to retain diagnostic logs"
+  type        = number
+  default     = 30
+  validation {
+    condition     = var.diagnostic_log_retention_days >= 0 && var.diagnostic_log_retention_days <= 365
+    error_message = "Diagnostic log retention days must be between 0 and 365."
+  }
+}

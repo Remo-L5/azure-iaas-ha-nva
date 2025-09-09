@@ -40,6 +40,11 @@ module "nva_ha" {
   # Security
   keyvault_resource_id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-core-${var.location}/providers/Microsoft.KeyVault/vaults/your-keyvault"
 
+  # Monitoring and Logging
+  log_analytics_workspace_resource_id = var.log_analytics_workspace_resource_id
+  enable_diagnostic_settings          = true
+  enable_data_collection_rules        = true
+
   # Optional
   enable_telemetry = false
   tags = {
