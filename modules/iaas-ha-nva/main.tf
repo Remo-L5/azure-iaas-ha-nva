@@ -1,27 +1,15 @@
-resource "azapi_resource_action" "accept_terms" {
-  type        = "Microsoft.MarketplaceOrdering/offerTypes/publishers/offers/plans/agreements@2015-06-01"
-  resource_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/offerTypes/virtualmachine/publishers/${var.os_image.publisher}/offers/${var.os_image.offer}/plans/${var.os_image.plan}/agreements/current"
-  action      = "sign"
-  method      = "PUT"
-
-  body = {
-    properties = {
-      publisher         = var.os_image.publisher
-      product           = var.os_image.offer
-      plan              = var.os_image.plan
-      licenseTextLink   = ""
-      privacyPolicyLink = ""
-      retrieveDatetime  = timestamp()
-      signature         = "string"
-      accepted          = true
-    }
-  }
+resource "azurerm_marketplace_agreement" "nva" {
+  publisher = var.os_image.publisher
+  offer     = var.os_image.offer
+  plan      = var.os_image.plan
 }
 
 module "naming" {
   source  = "Azure/naming/azurerm"
   version = "~> 0.3"
   suffix  = [var.app_short_name, var.location, var.environment]
+
+  depends_on = [ azurerm_marketplace_agreement.nva ]
 }
 
 module "resource_group" {
