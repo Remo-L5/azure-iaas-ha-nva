@@ -53,6 +53,9 @@ Spoke Networks → Internal LB (Next-hop) → Trust NICs → Palo Alto Firewall 
 - ✅ **Consistent Naming**: Azure naming module for standardized resource names
 - ✅ **Security**: Key Vault integration for VM credentials
 - ✅ **Monitoring**: Built-in health probes for load balancers
+- ✅ **Comprehensive Logging**: Log Analytics integration with diagnostic settings
+- ✅ **Performance Monitoring**: Data collection rules for VM performance metrics
+- ✅ **Centralized Monitoring**: Optional Log Analytics workspace integration
 
 ## Usage
 
@@ -100,6 +103,10 @@ module "palo_alto_ha" {
   
   # Security
   keyvault_resource_id = "/subscriptions/.../vaults/your-keyvault"
+  
+  # Monitoring and Logging (Optional)
+  log_analytics_workspace_resource_id = "/subscriptions/.../workspaces/your-log-analytics"
+  diagnostic_log_retention_days       = 30
   
   # Optional
   enable_telemetry = false
@@ -158,6 +165,10 @@ node_configuration = {
 | sku_size | The SKU size of the virtual machine | `string` | `"Standard_DS1_v2"` | no |
 | os_type | The OS type of the virtual machine | `string` | `"Linux"` | no |
 | enable_telemetry | Enable telemetry for resources | `bool` | `false` | no |
+| log_analytics_workspace_resource_id | Resource ID of Log Analytics workspace for monitoring | `string` | `null` | no |
+| enable_diagnostic_settings | Enable diagnostic settings for resources | `bool` | `true` | no |
+| enable_data_collection_rules | Enable data collection rules for performance monitoring | `bool` | `true` | no |
+| diagnostic_log_retention_days | Number of days to retain diagnostic logs | `number` | `30` | no |
 | tags | A map of tags to assign to resources | `map(string)` | `{}` | no |
 
 ## Outputs
@@ -165,15 +176,21 @@ node_configuration = {
 | Name | Description |
 |------|-------------|
 | untrust_network_interfaces | Map of untrust network interfaces for the NVA virtual machines |
+| trust_network_interfaces | Map of trust network interfaces for the NVA virtual machines |
 | external_load_balancer | External load balancer information including frontend IP and backend pools |
+| internal_load_balancer | Internal load balancer information |
+| data_collection_rule | Data collection rule for VM performance monitoring |
+| vm_diagnostic_settings | Map of VM diagnostic settings |
+| load_balancer_diagnostic_settings | Load balancer diagnostic settings |
 
 ## Prerequisites
 
 1. **Azure Subscription**: Active Azure subscription with appropriate permissions
 2. **Network Infrastructure**: Pre-existing VNet with trust and untrust subnets
 3. **Key Vault**: Azure Key Vault for storing VM admin credentials
-4. **Terraform**: Version 1.0 or higher
-5. **Azure Provider**: Version 3.0 or higher
+4. **Log Analytics Workspace**: (Optional) For centralized logging and monitoring
+5. **Terraform**: Version 1.0 or higher
+6. **Azure Provider**: Version 3.0 or higher
 
 ## Palo Alto Networks Specific Notes
 
@@ -188,7 +205,9 @@ node_configuration = {
 2. **Routing**: Configure User Defined Routes (UDRs) to direct spoke traffic through the internal load balancer
 3. **Security**: Use Azure Key Vault for credential management
 4. **Monitoring**: Enable Azure Monitor and configure alerts for load balancer health
-5. **Updates**: Regularly update to the latest Palo Alto VM-Series image versions
+5. **Log Analytics**: Connect to a Log Analytics workspace for centralized monitoring
+6. **Performance Monitoring**: Enable data collection rules for comprehensive VM monitoring
+7. **Updates**: Regularly update to the latest Palo Alto VM-Series image versions
 
 ## Contributing
 

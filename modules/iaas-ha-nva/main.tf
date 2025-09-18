@@ -67,7 +67,7 @@ module "iaas_nva" {
     key_vault_configuration = {
       resource_id = var.keyvault_resource_id
       secret_configuration = {
-        name = "azureuser-password-example"
+        name = "azureuser-${local.component_name}-${each.value.sequence_suffix}"
       }
     }
     password_authentication_disabled = false
@@ -163,7 +163,7 @@ module "slb_external" {
       protocol                       = "Tcp"
       frontend_port                  = 80
       backend_port                   = 80
-      floating_ip_enabled             = false
+      floating_ip_enabled            = false
       idle_timeout_in_minutes        = 4
       load_distribution              = "Default"
     }
@@ -175,7 +175,7 @@ module "slb_external" {
       protocol                       = "Tcp"
       frontend_port                  = 443
       backend_port                   = 443
-      floating_ip_enabled             = false
+      floating_ip_enabled            = false
       idle_timeout_in_minutes        = 4
       load_distribution              = "Default"
     }
@@ -183,11 +183,11 @@ module "slb_external" {
 
   diagnostic_settings = {
     default = {
-      name                                     = "default"
-      log_groups                               = ["allLogs"]
-      metric_categories                        = ["AllMetrics"]
-      log_analytics_destination_type           = "Dedicated"
-      workspace_resource_id                    = var.log_analytics_workspace_resource_id
+      name                           = "default"
+      log_groups                     = ["allLogs"]
+      metric_categories              = ["AllMetrics"]
+      log_analytics_destination_type = "Dedicated"
+      workspace_resource_id          = var.log_analytics_workspace_resource_id
     }
   }
 
@@ -258,7 +258,7 @@ module "slb_internal" {
       protocol                       = "Tcp"
       frontend_port                  = 80
       backend_port                   = 80
-      floating_ip_enabled             = false
+      floating_ip_enabled            = false
       idle_timeout_in_minutes        = 4
       load_distribution              = "Default"
     }
@@ -270,7 +270,7 @@ module "slb_internal" {
       protocol                       = "Tcp"
       frontend_port                  = 443
       backend_port                   = 443
-      floating_ip_enabled             = false
+      floating_ip_enabled            = false
       idle_timeout_in_minutes        = 4
       load_distribution              = "Default"
     }
@@ -278,11 +278,11 @@ module "slb_internal" {
 
   diagnostic_settings = {
     default = {
-      name                                     = "default"
-      log_groups                               = ["allLogs"]
-      metric_categories                        = ["AllMetrics"]
-      log_analytics_destination_type           = "Dedicated"
-      workspace_resource_id                    = var.log_analytics_workspace_resource_id
+      name                           = "default"
+      log_groups                     = ["allLogs"]
+      metric_categories              = ["AllMetrics"]
+      log_analytics_destination_type = "Dedicated"
+      workspace_resource_id          = var.log_analytics_workspace_resource_id
     }
   }
 
@@ -370,5 +370,5 @@ resource "azurerm_monitor_data_collection_rule_association" "vm_dcr_association"
 
   name                    = "dcra-vm-${each.value.sequence_suffix}"
   target_resource_id      = module.iaas_nva[each.key].resource_id
-  data_collection_rule_id = azurerm_monitor_data_collection_rule.vm_performance[0].id
+  data_collection_rule_id = azurerm_monitor_data_collection_rule.vm_performance.id
 }

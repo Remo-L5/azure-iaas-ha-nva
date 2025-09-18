@@ -13,6 +13,23 @@ This repository serves as a public reference to help others deploy their service
 - Multi-zone deployment patterns
 - Comprehensive documentation and examples
 
+## Prerequisites
+
+Before deploying this solution, ensure you have registered the **Encryption at Host** feature in your Azure subscription:
+
+```bash
+# Register the Encryption at Host feature
+az feature register --namespace Microsoft.Compute --name EncryptionAtHost
+
+# Check registration status
+az feature show --namespace Microsoft.Compute --name EncryptionAtHost
+
+# Once registered, refresh the resource provider
+az provider register --namespace Microsoft.Compute
+```
+
+> **Note**: Feature registration may take several minutes to complete. Verify the `state` shows as `"Registered"` before proceeding with deployment.
+
 ## Getting Started
 
 Explore the `modules/iaas-ha-nva/` directory for the complete module implementation, including:
@@ -27,6 +44,7 @@ Explore the `modules/iaas-ha-nva/` directory for the complete module implementat
 location        = "your-location"
 environment     = "your-environment"
 subscription_id = "your-subscription-id"
+log_analytics_workspace_resource_id = "/subscriptions/.../workspaces/your-log-analytics"
 ```
 
 ## License
