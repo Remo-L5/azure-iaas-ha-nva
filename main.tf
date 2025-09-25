@@ -8,7 +8,7 @@ module "nva_ha" {
   app_short_name  = "panfw"
 
   # VM Configuration
-  sku_size = "Standard_D16s_v5"
+  sku_size = "Standard_D16s_v4"
   os_type  = "Linux"
 
   # Palo Alto OS Image
@@ -36,6 +36,7 @@ module "nva_ha" {
   # Network Configuration
   trust_private_ip_subnet_resource_id   = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-${var.location}/providers/Microsoft.Network/virtualNetworks/vnet-hub-${var.location}/subnets/trust-subnet"
   untrust_private_ip_subnet_resource_id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-${var.location}/providers/Microsoft.Network/virtualNetworks/vnet-hub-${var.location}/subnets/untrust-subnet"
+  mgmt_private_ip_subnet_resource_id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-${var.location}/providers/Microsoft.Network/virtualNetworks/vnet-hub-${var.location}/subnets/mgmt-subnet"
 
   # Security
   keyvault_resource_id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-core-${var.location}/providers/Microsoft.KeyVault/vaults/your-keyvault"

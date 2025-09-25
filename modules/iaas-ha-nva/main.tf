@@ -1,7 +1,16 @@
+# Create marketplace agreement resource
 resource "azurerm_marketplace_agreement" "nva" {
   publisher = var.os_image.publisher
   offer     = var.os_image.offer
   plan      = var.os_image.plan
+}
+
+# Accept marketplace terms and conditions
+resource "azapi_resource_action" "accept_terms" {
+  type                   = "Microsoft.MarketplaceOrdering/offerTypes@2021-01-01"
+  resource_id            = azurerm_marketplace_agreement.nva.id
+  action                 = "accept"
+  response_export_values = ["*"]
 }
 
 module "naming" {
@@ -9,7 +18,7 @@ module "naming" {
   version = "~> 0.3"
   suffix  = [var.app_short_name, var.location, var.environment]
 
-  depends_on = [ azurerm_marketplace_agreement.nva ]
+  depends_on = [ azapi_resource_action.accept_terms ]
 }
 
 module "resource_group" {
@@ -46,6 +55,15 @@ module "iaas_nva" {
         untrust_ip_config = {
           name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
           private_ip_subnet_resource_id = var.untrust_private_ip_subnet_resource_id
+        }
+      }
+    }
+    mgmt_network_interface = {
+      name = "nic-${local.component_name}-${each.value.sequence_suffix}-mgmt"
+      ip_configurations = {
+        mgmt_ip_config = {
+          name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
+          private_ip_subnet_resource_id = var.mgmt_private_ip_subnet_resource_id
         }
       }
     }

@@ -60,6 +60,11 @@ variable "untrust_private_ip_subnet_resource_id" {
   type        = string
 }
 
+variable "mgmt_private_ip_subnet_resource_id" {
+  description = "The resource ID of the untrusted private IP subnet"
+  type        = string
+}
+
 variable "keyvault_resource_id" {
   description = "The resource ID of the Key Vault to store the admin password"
   type        = string

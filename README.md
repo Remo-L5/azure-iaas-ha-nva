@@ -30,6 +30,10 @@ az provider register --namespace Microsoft.Compute
 
 > **Note**: Feature registration may take several minutes to complete. Verify the `state` shows as `"Registered"` before proceeding with deployment.
 
+### Marketplace Agreement
+
+The Terraform configuration automatically accepts the Azure Marketplace terms for the Palo Alto VM-Series image during deployment. This eliminates the need to manually accept terms through the Azure portal or CLI before deployment.
+
 ## Getting Started
 
 Explore the `modules/iaas-ha-nva/` directory for the complete module implementation, including:
