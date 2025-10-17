@@ -32,7 +32,29 @@ az provider register --namespace Microsoft.Compute
 
 ### Marketplace Agreement
 
-The Terraform configuration automatically accepts the Azure Marketplace terms for the Palo Alto VM-Series image during deployment. This eliminates the need to manually accept terms through the Azure portal or CLI before deployment.
+The Terraform configuration includes automated marketplace agreement acceptance for the Palo Alto VM-Series image. **This code has been updated to use the correct AzAPI v2.x syntax but has not been fully tested yet.**
+
+> **⚠️ NOTE**: If the automated acceptance fails during deployment, please manually accept the terms using one of the methods below before running `terraform apply`.
+
+**Manual Acceptance - PowerShell:**
+
+```powershell
+# Accept Palo Alto VM-Series marketplace terms
+Set-AzMarketplaceTerms -Publisher "paloaltonetworks" -Product "vmseries-flex" -Name "byol" -Accept
+
+# Verify the agreement was accepted
+Get-AzMarketplaceTerms -Publisher "paloaltonetworks" -Product "vmseries-flex" -Name "byol"
+```
+
+**Manual Acceptance - Azure CLI:**
+
+```bash
+# Accept marketplace terms
+az vm image terms accept --publisher paloaltonetworks --offer vmseries-flex --plan byol
+
+# Verify the agreement was accepted
+az vm image terms show --publisher paloaltonetworks --offer vmseries-flex --plan byol
+```
 
 ## Getting Started
 

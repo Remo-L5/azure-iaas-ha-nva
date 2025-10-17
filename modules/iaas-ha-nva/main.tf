@@ -1,15 +1,13 @@
-# Create marketplace agreement resource
-resource "azurerm_marketplace_agreement" "nva" {
-  publisher = var.os_image.publisher
-  offer     = var.os_image.offer
-  plan      = var.os_image.plan
-}
-
 # Accept marketplace terms and conditions
 resource "azapi_resource_action" "accept_terms" {
-  type                   = "Microsoft.MarketplaceOrdering/offerTypes@2021-01-01"
-  resource_id            = azurerm_marketplace_agreement.nva.id
-  action                 = "accept"
+  type        = "Microsoft.MarketplaceOrdering/agreements@2015-06-01"
+  resource_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/agreements/${var.os_image.publisher}/${var.os_image.offer}/${var.os_image.plan}"
+  method      = "PUT"
+  body = {
+    properties = {
+      accepted = true
+    }
+  }
   response_export_values = ["*"]
 }
 
