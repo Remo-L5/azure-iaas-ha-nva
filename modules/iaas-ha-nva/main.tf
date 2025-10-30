@@ -38,11 +38,18 @@ module "slb_service_chain" {
   tags                = var.tags
 
   frontend_ip_configurations = local.svc_enabled ? {
-    service_chain = {
-      name                                                        = local.svc_slb_fe_config_name
-      create_public_ip_address                                    = false
-      gateway_load_balancer_frontend_ip_configuration_resource_id = local.svc_config.gateway_load_balancer_frontend_ip_configuration_id
-    }
+    service_chain = merge(
+      {
+        name                     = local.svc_slb_fe_config_name
+        create_public_ip_address = local.svc_config.create_public_ip_address
+      },
+      local.svc_config.create_public_ip_address ? {
+        public_ip_address_resource_name = local.svc_config.public_ip_address_resource_name
+      } : {},
+      local.svc_config.gateway_load_balancer_frontend_ip_configuration_id != null ? {
+        gateway_load_balancer_frontend_ip_configuration_resource_id = local.svc_config.gateway_load_balancer_frontend_ip_configuration_id
+      } : {}
+    )
   } : {}
 
   backend_address_pools = local.svc_enabled ? {
@@ -63,13 +70,13 @@ module "slb_service_chain" {
 
   lb_rules = local.svc_enabled ? {
     ha_ports = {
-      name                           = "ha-ports"
+      name                           = "rule-ha-ports"
       frontend_ip_configuration_name = local.svc_slb_fe_config_name
       backend_address_pool_name      = local.svc_slb_be_pool_name
       probe_object_name              = "service_chain_probe"
       protocol                       = "All"
-      frontend_port                  = 0
-      backend_port                   = 0
+      frontend_port                  = local.svc_config.frontend_port
+      backend_port                   = local.svc_config.backend_port
       floating_ip_enabled            = false
       disable_outbound_snat          = true
       idle_timeout_in_minutes        = 4

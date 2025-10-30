@@ -118,9 +118,12 @@ module "palo_alto_ha" {
   
   # Optional
   # service_chain_configuration = {
-  #   subnet_resource_id                              = "/subscriptions/.../subnets/service-chain-subnet"
+  #   subnet_resource_id   = "/subscriptions/.../subnets/service-chain-subnet"
+  #   probe_port           = 443
+  #   frontend_port        = 0
+  #   backend_port         = 0
+  #   create_public_ip_address = true
   #   gateway_load_balancer_frontend_ip_configuration_id = "/subscriptions/.../frontendIPConfigurations/gwlb-frontend"
-  #   probe_port                                      = 8100
   # }
   enable_telemetry = false
   tags = {
@@ -174,7 +177,7 @@ node_configuration = {
 | trust_private_ip_subnet_resource_id | Resource ID of the trust subnet | `string` | n/a | yes |
 | untrust_private_ip_subnet_resource_id | Resource ID of the untrust subnet | `string` | n/a | yes |
 | mgmt_private_ip_subnet_resource_id | Resource ID of the management subnet | `string` | n/a | yes |
-| service_chain_configuration | Optional Gateway Load Balancer integration settings (set to `null` to disable) | `object({ subnet_resource_id = string, gateway_load_balancer_frontend_ip_configuration_id = string, probe_protocol = optional(string), probe_port = optional(number), probe_interval_in_seconds = optional(number), probe_number_of_probes = optional(number), load_balancer_name = optional(string) })` | `null` | no |
+| service_chain_configuration | Optional Gateway Load Balancer integration settings (set to `null` to disable) | `object({ subnet_resource_id = string, gateway_load_balancer_frontend_ip_configuration_id = optional(string), probe_protocol = optional(string), probe_port = optional(number), probe_interval_in_seconds = optional(number), probe_number_of_probes = optional(number), load_balancer_name = optional(string), create_public_ip_address = optional(bool), public_ip_address_resource_name = optional(string), frontend_port = optional(number), backend_port = optional(number) })` | `null` | no |
 | sku_size | The SKU size of the virtual machine | `string` | `"Standard_DS1_v2"` | no |
 | os_type | The OS type of the virtual machine | `string` | `"Linux"` | no |
 | os_image | Palo Alto OS image configuration | `object({ publisher = string, offer = string, sku = string, plan = string, version = string })` | n/a | yes |

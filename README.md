@@ -10,6 +10,7 @@ This repository serves as a public reference to help others deploy their service
 
 - Terraform modules utilizing Azure Verified Modules
 - High-availability architecture with dual load balancers
+- Optional Gateway Load Balancer service chaining with HA Ports load balancing
 - Multi-zone deployment patterns
 - Comprehensive documentation and examples
 
@@ -72,6 +73,28 @@ environment     = "your-environment"
 subscription_id = "your-subscription-id"
 log_analytics_workspace_resource_id = "/subscriptions/.../workspaces/your-log-analytics"
 ```
+
+### Enabling Gateway Load Balancer Service Chaining (Optional)
+
+The root module exposes an object-based `service_chain_configuration` input that provisions:
+- A dedicated service-chain NIC per VM
+- A Standard Load Balancer configured with HA Ports (`frontend_port = 0`, `backend_port = 0`)
+- Optional public IP creation when a Gateway Load Balancer frontend ID is not supplied
+
+Below is a sample snippet you can adapt in your root configuration:
+
+```hcl
+service_chain_configuration = {
+  subnet_resource_id                                 = "/subscriptions/.../subnets/service-chain"
+  gateway_load_balancer_frontend_ip_configuration_id = "/subscriptions/.../loadBalancers/gwlb/frontendIPConfigurations/gwlb-frontend"
+  probe_port                                         = 443
+  frontend_port                                      = 0
+  backend_port                                       = 0
+  # create_public_ip_address defaults to true; public IP naming follows the module convention
+}
+```
+
+If you supply the `gateway_load_balancer_frontend_ip_configuration_id`, the load balancer will chain to the specified Gateway Load Balancer. Leaving it `null` still creates the service-chain load balancer with a new public IP using the default naming convention (`pip-slb-svc-<app>-<location>-<environment>`).
 
 ## License
 
