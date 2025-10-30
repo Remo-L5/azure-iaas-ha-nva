@@ -33,3 +33,21 @@ output "internal_load_balancer" {
     name = module.slb_internal.name
   }
 }
+
+output "service_chain_network_interfaces" {
+  description = "Map of service chain network interfaces for the NVA virtual machines"
+  value = var.service_chain_configuration != null ? {
+    for key, vm in module.iaas_nva : key => {
+      id                 = vm.network_interfaces["service_chain_network_interface"].id
+      private_ip_address = vm.network_interfaces["service_chain_network_interface"].private_ip_address
+    }
+  } : {}
+}
+
+output "service_chain_load_balancer" {
+  description = "Service chain standard load balancer information"
+  value = var.service_chain_configuration != null ? {
+    id   = module.slb_service_chain[0].resource_id
+    name = module.slb_service_chain[0].name
+  } : null
+}
