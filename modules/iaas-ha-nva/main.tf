@@ -16,7 +16,7 @@ module "naming" {
   version = "~> 0.3"
   suffix  = [var.app_short_name, var.location, var.environment]
 
-  depends_on = [ azapi_resource_action.accept_terms ]
+  depends_on = [azapi_resource_action.accept_terms]
 }
 
 module "resource_group" {
@@ -24,6 +24,65 @@ module "resource_group" {
   version  = "0.2.1"
   location = var.location
   name     = module.naming.resource_group.name_unique
+}
+
+module "slb_service_chain" {
+  source  = "Azure/avm-res-network-loadbalancer/azurerm"
+  version = "0.4.1"
+  count   = local.svc_enabled ? 1 : 0
+
+  location            = var.location
+  name                = local.svc_enabled ? local.svc_config.load_balancer_name : local.svc_slb_name
+  resource_group_name = module.resource_group.name
+  enable_telemetry    = var.enable_telemetry
+  tags                = var.tags
+
+  frontend_ip_configurations = local.svc_enabled ? {
+    service_chain = merge(
+      {
+        name                     = local.svc_slb_fe_config_name
+        create_public_ip_address = local.svc_config.create_public_ip_address
+      },
+      local.svc_config.create_public_ip_address ? {
+        public_ip_address_resource_name = local.svc_config.public_ip_address_resource_name
+      } : {},
+      local.svc_config.gateway_load_balancer_frontend_ip_configuration_id != null ? {
+        gateway_load_balancer_frontend_ip_configuration_resource_id = local.svc_config.gateway_load_balancer_frontend_ip_configuration_id
+      } : {}
+    )
+  } : {}
+
+  backend_address_pools = local.svc_enabled ? {
+    service_chain_pool = {
+      name = local.svc_slb_be_pool_name
+    }
+  } : {}
+
+  lb_probes = local.svc_enabled ? {
+    service_chain_probe = {
+      name                = local.svc_slb_probe_name
+      protocol            = local.svc_config.probe_protocol
+      port                = local.svc_config.probe_port
+      interval_in_seconds = local.svc_config.probe_interval_in_seconds
+      number_of_probes    = local.svc_config.probe_number_of_probes
+    }
+  } : {}
+
+  lb_rules = local.svc_enabled ? {
+    ha_ports = {
+      name                           = "rule-ha-ports"
+      frontend_ip_configuration_name = local.svc_slb_fe_config_name
+      backend_address_pool_name      = local.svc_slb_be_pool_name
+      probe_object_name              = "service_chain_probe"
+      protocol                       = "All"
+      frontend_port                  = local.svc_config.frontend_port
+      backend_port                   = local.svc_config.backend_port
+      floating_ip_enabled            = false
+      disable_outbound_snat          = true
+      idle_timeout_in_minutes        = 4
+      load_distribution              = "Default"
+    }
+  } : {}
 }
 
 module "iaas_nva" {
@@ -37,35 +96,64 @@ module "iaas_nva" {
   name                = "${local.vm_name_base_name}-${each.value.sequence_suffix}"
   zone                = each.value.availability_zone
 
-  network_interfaces = {
-    trust_network_interface = {
-      name = "nic-${local.component_name}-${each.value.sequence_suffix}-trust"
-      ip_configurations = {
-        trust_ip_config = {
-          name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
-          private_ip_subnet_resource_id = var.trust_private_ip_subnet_resource_id
+  network_interfaces = merge(
+    {
+      trust_network_interface = {
+        name = "nic-${local.component_name}-${each.value.sequence_suffix}-trust"
+        ip_configurations = {
+          trust_ip_config = {
+            name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
+            private_ip_subnet_resource_id = var.trust_private_ip_subnet_resource_id
+            load_balancer_backend_pools = {
+              trust_pool = {
+                load_balancer_backend_pool_resource_id = module.slb_internal.azurerm_lb_backend_address_pool["bepool_trust"].id
+              }
+            }
+          }
         }
       }
-    }
-    untrust_network_interface = {
-      name = "nic-${local.component_name}-${each.value.sequence_suffix}-untrust"
-      ip_configurations = {
-        untrust_ip_config = {
-          name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
-          private_ip_subnet_resource_id = var.untrust_private_ip_subnet_resource_id
+      untrust_network_interface = {
+        name = "nic-${local.component_name}-${each.value.sequence_suffix}-untrust"
+        ip_configurations = {
+          untrust_ip_config = {
+            name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
+            private_ip_subnet_resource_id = var.untrust_private_ip_subnet_resource_id
+            load_balancer_backend_pools = {
+              untrust_pool = {
+                load_balancer_backend_pool_resource_id = module.slb_external.azurerm_lb_backend_address_pool["bepool_untrust"].id
+              }
+            }
+          }
         }
       }
-    }
-    mgmt_network_interface = {
-      name = "nic-${local.component_name}-${each.value.sequence_suffix}-mgmt"
-      ip_configurations = {
-        mgmt_ip_config = {
-          name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
-          private_ip_subnet_resource_id = var.mgmt_private_ip_subnet_resource_id
+      mgmt_network_interface = {
+        name = "nic-${local.component_name}-${each.value.sequence_suffix}-mgmt"
+        ip_configurations = {
+          mgmt_ip_config = {
+            name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
+            private_ip_subnet_resource_id = var.mgmt_private_ip_subnet_resource_id
+          }
         }
       }
-    }
-  }
+    },
+    local.svc_enabled ? {
+      service_chain_network_interface = {
+        name                  = "nic-${local.component_name}-${each.value.sequence_suffix}-svc"
+        ip_forwarding_enabled = true
+        ip_configurations = {
+          service_chain_ip_config = {
+            name                          = "${local.component_name}-${each.value.sequence_suffix}-svc-ipconfig"
+            private_ip_subnet_resource_id = local.svc_config.subnet_resource_id
+            load_balancer_backend_pools = {
+              service_chain_pool = {
+                load_balancer_backend_pool_resource_id = module.slb_service_chain[0].azurerm_lb_backend_address_pool["service_chain_pool"].id
+              }
+            }
+          }
+        }
+      }
+    } : {}
+  )
 
   account_credentials = {
     key_vault_configuration = {
@@ -124,14 +212,6 @@ module "slb_external" {
   backend_address_pools = {
     bepool_untrust = {
       name = local.ext_slb_be_pool_name
-    }
-  }
-
-  backend_address_pool_network_interfaces = {
-    for key, vm_config in var.node_configuration : key => {
-      backend_address_pool_object_name = "bepool_untrust"
-      ip_configuration_name            = "${local.component_name}-${vm_config.sequence_suffix}-untrust-ipconfig"
-      network_interface_resource_id    = module.iaas_nva[key].network_interfaces["untrust_network_interface"].id
     }
   }
 
@@ -219,14 +299,6 @@ module "slb_internal" {
   backend_address_pools = {
     bepool_trust = {
       name = local.int_slb_be_pool_name
-    }
-  }
-
-  backend_address_pool_network_interfaces = {
-    for key, vm_config in var.node_configuration : key => {
-      backend_address_pool_object_name = "bepool_trust"
-      ip_configuration_name            = "${local.component_name}-${vm_config.sequence_suffix}-trust-ipconfig"
-      network_interface_resource_id    = module.iaas_nva[key].network_interfaces["trust_network_interface"].id
     }
   }
 

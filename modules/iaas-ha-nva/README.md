@@ -12,7 +12,7 @@ The module deploys the following components:
 
 ### Core Infrastructure
 - **Virtual Machines**: Palo Alto firewall appliances deployed across availability zones
-- **Network Interfaces**: Each VM has two NICs (trust and untrust subnets)
+- **Network Interfaces**: Trust, untrust, and management NICs with an optional service chain NIC for Gateway Load Balancer traffic
 - **External Load Balancer**: Public-facing load balancer with public IP
 - **Internal Load Balancer**: Private load balancer for spoke network routing
 - **Resource Group**: Managed with consistent naming conventions
@@ -43,11 +43,19 @@ Spoke Networks → Internal LB (Next-hop) → Trust NICs → Palo Alto Firewall 
 - **Health Probes**: TCP (22), HTTP (80), HTTPS (443)
 - **Load Balancing Rules**: HTTP and HTTPS traffic distribution
 
+#### Service Chain Load Balancer (`slb_svc`, optional)
+- **Frontend**: Anchored to a Gateway Load Balancer frontend IP configuration via service chaining
+- **Backend Pool**: Connected to the dedicated service chain network interfaces on each VM
+- **Purpose**: Terminates VXLAN encapsulated traffic from the Gateway Load Balancer before it reaches the NVA dataplane
+- **Health Probes**: Configurable probe protocol/port to report NVA health upstream
+- **Load Balancing Rules**: HA Ports rule (protocol `All`, ports `0`) to pass all encapsulated traffic through the appliance
+
 ## Features
 
 - ✅ **High Availability**: Zone-redundant deployment across multiple availability zones
 - ✅ **Scalability**: Easy horizontal scaling by updating the node configuration
 - ✅ **Dual Load Balancers**: Separate external and internal load balancers for optimal traffic flow
+- ✅ **Gateway Load Balancer Integration**: Optional service chaining with a dedicated VXLAN NIC and Standard Load Balancer backend
 - ✅ **Automated Backend Pool Management**: Dynamic association of VMs to load balancer backend pools
 - ✅ **Marketplace Agreement**: Automatic acceptance of Palo Alto marketplace terms
 - ✅ **Consistent Naming**: Azure naming module for standardized resource names
@@ -109,6 +117,14 @@ module "palo_alto_ha" {
   diagnostic_log_retention_days       = 30
   
   # Optional
+  # service_chain_configuration = {
+  #   subnet_resource_id   = "/subscriptions/.../subnets/service-chain-subnet"
+  #   probe_port           = 443
+  #   frontend_port        = 0
+  #   backend_port         = 0
+  #   create_public_ip_address = true
+  #   gateway_load_balancer_frontend_ip_configuration_id = "/subscriptions/.../frontendIPConfigurations/gwlb-frontend"
+  # }
   enable_telemetry = false
   tags = {
     Environment = "Production"
@@ -156,18 +172,18 @@ node_configuration = {
 | subscription_id | The ID of the Azure subscription | `string` | n/a | yes |
 | location | The location of the resources | `string` | n/a | yes |
 | environment | The environment of the deployment (e.g., dev, prod) | `string` | n/a | yes |
-| app_short_name | The name of the component | `string` | n/a | yes |
-| node_configuration | Map of node configurations with AZ and suffix | `map(object({availability_zone = number, sequence_suffix = string}))` | n/a | yes |
+| app_short_name | Short name used for resource naming | `string` | n/a | yes |
+| node_configuration | Map of node configurations with AZ and suffix | `map(object({ availability_zone = number, sequence_suffix = string }))` | n/a | yes |
 | trust_private_ip_subnet_resource_id | Resource ID of the trust subnet | `string` | n/a | yes |
 | untrust_private_ip_subnet_resource_id | Resource ID of the untrust subnet | `string` | n/a | yes |
-| keyvault_resource_id | Resource ID of the Key Vault for credentials | `string` | n/a | yes |
-| os_image | Palo Alto OS image configuration | `object({publisher = string, offer = string, sku = string, version = string})` | n/a | yes |
+| mgmt_private_ip_subnet_resource_id | Resource ID of the management subnet | `string` | n/a | yes |
+| service_chain_configuration | Optional Gateway Load Balancer integration settings (set to `null` to disable) | `object({ subnet_resource_id = string, gateway_load_balancer_frontend_ip_configuration_id = optional(string), probe_protocol = optional(string), probe_port = optional(number), probe_interval_in_seconds = optional(number), probe_number_of_probes = optional(number), load_balancer_name = optional(string), create_public_ip_address = optional(bool), public_ip_address_resource_name = optional(string), frontend_port = optional(number), backend_port = optional(number) })` | `null` | no |
 | sku_size | The SKU size of the virtual machine | `string` | `"Standard_DS1_v2"` | no |
 | os_type | The OS type of the virtual machine | `string` | `"Linux"` | no |
+| os_image | Palo Alto OS image configuration | `object({ publisher = string, offer = string, sku = string, plan = string, version = string })` | n/a | yes |
+| keyvault_resource_id | Resource ID of the Key Vault for credentials | `string` | n/a | yes |
 | enable_telemetry | Enable telemetry for resources | `bool` | `false` | no |
 | log_analytics_workspace_resource_id | Resource ID of Log Analytics workspace for monitoring | `string` | `null` | no |
-| enable_diagnostic_settings | Enable diagnostic settings for resources | `bool` | `true` | no |
-| enable_data_collection_rules | Enable data collection rules for performance monitoring | `bool` | `true` | no |
 | diagnostic_log_retention_days | Number of days to retain diagnostic logs | `number` | `30` | no |
 | tags | A map of tags to assign to resources | `map(string)` | `{}` | no |
 
@@ -179,9 +195,8 @@ node_configuration = {
 | trust_network_interfaces | Map of trust network interfaces for the NVA virtual machines |
 | external_load_balancer | External load balancer information including frontend IP and backend pools |
 | internal_load_balancer | Internal load balancer information |
-| data_collection_rule | Data collection rule for VM performance monitoring |
-| vm_diagnostic_settings | Map of VM diagnostic settings |
-| load_balancer_diagnostic_settings | Load balancer diagnostic settings |
+| service_chain_network_interfaces | Map of service chain network interfaces when Gateway Load Balancer integration is enabled |
+| service_chain_load_balancer | Service chain Standard Load Balancer details when integration is enabled |
 
 ## Prerequisites
 
