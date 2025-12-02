@@ -72,7 +72,7 @@ module "slb_service_chain" {
     ha_ports = {
       name                           = "rule-ha-ports"
       frontend_ip_configuration_name = local.svc_slb_fe_config_name
-      backend_address_pool_name      = local.svc_slb_be_pool_name
+      backend_address_pool_object_names      = ["service_chain_pool"]
       probe_object_name              = "service_chain_probe"
       protocol                       = "All"
       frontend_port                  = local.svc_config.frontend_port
@@ -100,9 +100,11 @@ module "iaas_nva" {
     {
       trust_network_interface = {
         name = "nic-${local.component_name}-${each.value.sequence_suffix}-trust"
+        ip_forwarding_enabled = true
         ip_configurations = {
           trust_ip_config = {
             name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
+            private_ip_address_allocation = "Static"
             private_ip_subnet_resource_id = var.trust_private_ip_subnet_resource_id
             load_balancer_backend_pools = {
               trust_pool = {
@@ -114,9 +116,11 @@ module "iaas_nva" {
       }
       untrust_network_interface = {
         name = "nic-${local.component_name}-${each.value.sequence_suffix}-untrust"
+        ip_forwarding_enabled = true
         ip_configurations = {
           untrust_ip_config = {
             name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
+            private_ip_address_allocation = "Static"
             private_ip_subnet_resource_id = var.untrust_private_ip_subnet_resource_id
             load_balancer_backend_pools = {
               untrust_pool = {
@@ -222,28 +226,26 @@ module "slb_external" {
       port                = 22
       interval_in_seconds = 5
     },
-    probe_http_80 = {
-      name                = "probe_http_80"
-      protocol            = "Http"
+    probe_tcp_80 = {
+      name                = "probe_tcp_80"
+      protocol            = "Tcp"
       port                = 80
-      request_path        = "/health"
       interval_in_seconds = 5
     },
     probe_https_443 = {
       name                = "probe_https_443"
-      protocol            = "Https"
+      protocol            = "Tcp"
       port                = 443
-      request_path        = "/health"
       interval_in_seconds = 5
     }
   }
 
   lb_rules = {
-    rule_http = {
-      name                           = "rule_http"
+    rule_tcp_80 = {
+      name                           = "rule_tcp_80"
       frontend_ip_configuration_name = local.ext_slb_fe_config_name
-      backend_address_pool_name      = local.ext_slb_be_pool_name
-      probe_object_name              = "probe_http_80"
+      backend_address_pool_object_names      = ["bepool_untrust"]
+      probe_object_name              = "probe_tcp_80"
       protocol                       = "Tcp"
       frontend_port                  = 80
       backend_port                   = 80
@@ -251,11 +253,11 @@ module "slb_external" {
       idle_timeout_in_minutes        = 4
       load_distribution              = "Default"
     }
-    rule_https = {
-      name                           = "rule_https"
+    rule_tcp_443 = {
+      name                           = "rule_tcp_443"
       frontend_ip_configuration_name = local.ext_slb_fe_config_name
-      backend_address_pool_name      = local.ext_slb_be_pool_name
-      probe_object_name              = "probe_https_443"
+      backend_address_pool_object_names      = ["bepool_untrust"]
+      probe_object_name              = "probe_tcp_443"
       protocol                       = "Tcp"
       frontend_port                  = 443
       backend_port                   = 443
@@ -309,28 +311,26 @@ module "slb_internal" {
       port                = 22
       interval_in_seconds = 5
     },
-    probe_http_80 = {
-      name                = "probe_http_80"
-      protocol            = "Http"
+    probe_tcp_80 = {
+      name                = "probe_tcp_80"
+      protocol            = "Tcp"
       port                = 80
-      request_path        = "/health"
       interval_in_seconds = 5
     },
-    probe_https_443 = {
-      name                = "probe_https_443"
-      protocol            = "Https"
+    probe_tcp_443 = {
+      name                = "probe_tcp_443"
+      protocol            = "Tcp"
       port                = 443
-      request_path        = "/health"
       interval_in_seconds = 5
     }
   }
 
   lb_rules = {
-    rule_http = {
-      name                           = "rule_http"
+    rule_tcp_80 = {
+      name                           = "rule_tcp_80"
       frontend_ip_configuration_name = local.int_slb_fe_config_name
-      backend_address_pool_name      = local.int_slb_be_pool_name
-      probe_object_name              = "probe_http_80"
+      backend_address_pool_object_names      = ["bepool_trust"]
+      probe_object_name              = "probe_tcp_80"
       protocol                       = "Tcp"
       frontend_port                  = 80
       backend_port                   = 80
@@ -338,11 +338,11 @@ module "slb_internal" {
       idle_timeout_in_minutes        = 4
       load_distribution              = "Default"
     }
-    rule_https = {
-      name                           = "rule_https"
+    rule_tcp_443 = {
+      name                           = "rule_tcp_443"
       frontend_ip_configuration_name = local.int_slb_fe_config_name
-      backend_address_pool_name      = local.int_slb_be_pool_name
-      probe_object_name              = "probe_https_443"
+      backend_address_pool_object_names      = ["bepool_trust"]
+      probe_object_name              = "probe_tcp_443"
       protocol                       = "Tcp"
       frontend_port                  = 443
       backend_port                   = 443
