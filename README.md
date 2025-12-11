@@ -76,25 +76,29 @@ log_analytics_workspace_resource_id = "/subscriptions/.../workspaces/your-log-an
 
 ### Enabling Gateway Load Balancer Service Chaining (Optional)
 
-The root module exposes an object-based `service_chain_configuration` input that provisions:
-- A dedicated service-chain NIC per VM
-- A Standard Load Balancer configured with HA Ports (`frontend_port = 0`, `backend_port = 0`)
-- Optional public IP creation when a Gateway Load Balancer frontend ID is not supplied
+The module can deploy a complete Gateway Load Balancer service chaining architecture. When enabled via `service_chain_configuration`, the module provisions:
+- A **Gateway Load Balancer** with VXLAN tunnel interfaces for transparent traffic inspection
+- A **Standard Load Balancer** with public IP chained to the Gateway Load Balancer
+- A dedicated **service-chain NIC** per VM connected to the Gateway Load Balancer backend pool
 
 Below is a sample snippet you can adapt in your root configuration:
 
 ```hcl
 service_chain_configuration = {
-  subnet_resource_id                                 = "/subscriptions/.../subnets/service-chain"
-  gateway_load_balancer_frontend_ip_configuration_id = "/subscriptions/.../loadBalancers/gwlb/frontendIPConfigurations/gwlb-frontend"
-  probe_port                                         = 443
-  frontend_port                                      = 0
-  backend_port                                       = 0
-  # create_public_ip_address defaults to true; public IP naming follows the module convention
+  subnet_resource_id       = "/subscriptions/.../subnets/service-chain"
+  probe_port               = 443
+  frontend_port            = 0
+  backend_port             = 0
+  # Gateway Load Balancer settings (optional, uses defaults)
+  # gateway_load_balancer_name   = "gwlb-custom-name"
+  # internal_tunnel_port         = 10800
+  # external_tunnel_port         = 10801
+  # internal_tunnel_identifier   = 800
+  # external_tunnel_identifier   = 801
 }
 ```
 
-If you supply the `gateway_load_balancer_frontend_ip_configuration_id`, the load balancer will chain to the specified Gateway Load Balancer. Leaving it `null` still creates the service-chain load balancer with a new public IP using the default naming convention (`pip-slb-svc-<app>-<location>-<environment>`).
+The Gateway Load Balancer and service chain Standard Load Balancer are deployed automatically by the module. You can customize the VXLAN tunnel ports and identifiers if needed.
 
 ## License
 

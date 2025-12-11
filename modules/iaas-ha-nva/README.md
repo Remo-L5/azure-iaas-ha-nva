@@ -12,9 +12,10 @@ The module deploys the following components:
 
 ### Core Infrastructure
 - **Virtual Machines**: Palo Alto firewall appliances deployed across availability zones
-- **Network Interfaces**: Trust, untrust, and management NICs with an optional service chain NIC for Gateway Load Balancer traffic
+- **Network Interfaces**: Trust, untrust, and management NICs with an optional service chain NIC connected to the Gateway Load Balancer backend pool
 - **External Load Balancer**: Public-facing load balancer with public IP
 - **Internal Load Balancer**: Private load balancer for spoke network routing
+- **Gateway Load Balancer**: (Optional) Deployed for VXLAN-based traffic inspection with tunnel interfaces
 - **Resource Group**: Managed with consistent naming conventions
 
 ### Network Flow Design
@@ -43,12 +44,21 @@ Spoke Networks → Internal LB (Next-hop) → Trust NICs → Palo Alto Firewall 
 - **Health Probes**: TCP (22), HTTP (80), HTTPS (443)
 - **Load Balancing Rules**: HTTP and HTTPS traffic distribution
 
-#### Service Chain Load Balancer (`slb_svc`, optional)
-- **Frontend**: Anchored to a Gateway Load Balancer frontend IP configuration via service chaining
-- **Backend Pool**: Connected to the dedicated service chain network interfaces on each VM
-- **Purpose**: Terminates VXLAN encapsulated traffic from the Gateway Load Balancer before it reaches the NVA dataplane
-- **Health Probes**: Configurable probe protocol/port to report NVA health upstream
-- **Load Balancing Rules**: HA Ports rule (protocol `All`, ports `0`) to pass all encapsulated traffic through the appliance
+#### Gateway Load Balancer (`gwlb`, optional)
+- **SKU**: Gateway
+- **Frontend**: Private IP in the service chain subnet
+- **Backend Pool**: Connected to service chain network interfaces with VXLAN tunnel interfaces
+- **Purpose**: Inspects traffic via VXLAN encapsulation before forwarding to NVA
+- **Tunnel Interfaces**: Internal (port 10800) and External (port 10801) VXLAN tunnels
+- **Health Probes**: Configurable probe protocol/port
+- **Load Balancing Rules**: HA Ports rule (protocol `All`, ports `0`)
+
+#### Service Chain Load Balancer (`slb_service_chain`, optional)
+- **Frontend**: Public IP chained to the Gateway Load Balancer frontend IP configuration
+- **Backend Pool**: Not directly used (VMs connect to GWLB backend pool)
+- **Purpose**: Provides a public endpoint that chains traffic through the Gateway Load Balancer for inspection
+- **Health Probes**: Configurable probe protocol/port
+- **Load Balancing Rules**: HA Ports rule (protocol `All`, ports `0`)
 
 ## Features
 
@@ -116,14 +126,19 @@ module "palo_alto_ha" {
   log_analytics_workspace_resource_id = "/subscriptions/.../workspaces/your-log-analytics"
   diagnostic_log_retention_days       = 30
   
-  # Optional
+  # Optional - Gateway Load Balancer Service Chaining
   # service_chain_configuration = {
-  #   subnet_resource_id   = "/subscriptions/.../subnets/service-chain-subnet"
-  #   probe_port           = 443
-  #   frontend_port        = 0
-  #   backend_port         = 0
+  #   subnet_resource_id       = "/subscriptions/.../subnets/service-chain-subnet"
+  #   probe_port               = 443
+  #   frontend_port            = 0
+  #   backend_port             = 0
   #   create_public_ip_address = true
-  #   gateway_load_balancer_frontend_ip_configuration_id = "/subscriptions/.../frontendIPConfigurations/gwlb-frontend"
+  #   # Gateway Load Balancer settings (optional, uses defaults)
+  #   # gateway_load_balancer_name   = "gwlb-custom-name"
+  #   # internal_tunnel_port         = 10800
+  #   # external_tunnel_port         = 10801
+  #   # internal_tunnel_identifier   = 800
+  #   # external_tunnel_identifier   = 801
   # }
   enable_telemetry = false
   tags = {
@@ -177,7 +192,7 @@ node_configuration = {
 | trust_private_ip_subnet_resource_id | Resource ID of the trust subnet | `string` | n/a | yes |
 | untrust_private_ip_subnet_resource_id | Resource ID of the untrust subnet | `string` | n/a | yes |
 | mgmt_private_ip_subnet_resource_id | Resource ID of the management subnet | `string` | n/a | yes |
-| service_chain_configuration | Optional Gateway Load Balancer integration settings (set to `null` to disable) | `object({ subnet_resource_id = string, gateway_load_balancer_frontend_ip_configuration_id = optional(string), probe_protocol = optional(string), probe_port = optional(number), probe_interval_in_seconds = optional(number), probe_number_of_probes = optional(number), load_balancer_name = optional(string), create_public_ip_address = optional(bool), public_ip_address_resource_name = optional(string), frontend_port = optional(number), backend_port = optional(number) })` | `null` | no |
+| service_chain_configuration | Optional configuration to deploy a Gateway Load Balancer and chained Standard Load Balancer (set to `null` to disable) | `object({ subnet_resource_id = string, probe_protocol = optional(string), probe_port = optional(number), probe_interval_in_seconds = optional(number), probe_number_of_probes = optional(number), load_balancer_name = optional(string), create_public_ip_address = optional(bool), public_ip_address_resource_name = optional(string), frontend_port = optional(number), backend_port = optional(number), gateway_load_balancer_name = optional(string), internal_tunnel_port = optional(number), external_tunnel_port = optional(number), internal_tunnel_identifier = optional(number), external_tunnel_identifier = optional(number) })` | `null` | no |
 | sku_size | The SKU size of the virtual machine | `string` | `"Standard_DS1_v2"` | no |
 | os_type | The OS type of the virtual machine | `string` | `"Linux"` | no |
 | os_image | Palo Alto OS image configuration | `object({ publisher = string, offer = string, sku = string, plan = string, version = string })` | n/a | yes |
@@ -196,7 +211,8 @@ node_configuration = {
 | external_load_balancer | External load balancer information including frontend IP and backend pools |
 | internal_load_balancer | Internal load balancer information |
 | service_chain_network_interfaces | Map of service chain network interfaces when Gateway Load Balancer integration is enabled |
-| service_chain_load_balancer | Service chain Standard Load Balancer details when integration is enabled |
+| gateway_load_balancer | Gateway Load Balancer information for VXLAN traffic inspection |
+| service_chain_load_balancer | Service chain Standard Load Balancer details (chained to Gateway Load Balancer) |
 
 ## Prerequisites
 

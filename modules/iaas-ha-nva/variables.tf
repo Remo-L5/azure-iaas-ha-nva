@@ -67,21 +67,31 @@ variable "mgmt_private_ip_subnet_resource_id" {
 
 variable "service_chain_configuration" {
   description = <<DESC
-Optional configuration for integrating with a Gateway Load Balancer by provisioning an additional service chain interface and Standard Load Balancer.
+Optional configuration for deploying a Gateway Load Balancer and service chain Standard Load Balancer.
+This provisions:
+- A Gateway Load Balancer with VXLAN tunnel interfaces for traffic inspection
+- A Standard Load Balancer chained to the Gateway Load Balancer
+- A dedicated service chain NIC per VM connected to the Gateway Load Balancer backend pool
+
 Provide `null` to disable the integration.
 DESC
   type = object({
-    subnet_resource_id                                 = string
-    gateway_load_balancer_frontend_ip_configuration_id = optional(string)
-    probe_protocol                                     = optional(string)
-    probe_port                                         = optional(number)
-    probe_interval_in_seconds                          = optional(number)
-    probe_number_of_probes                             = optional(number)
-    load_balancer_name                                 = optional(string)
-    create_public_ip_address                           = optional(bool)
-    public_ip_address_resource_name                    = optional(string)
-    frontend_port                                      = optional(number)
-    backend_port                                       = optional(number)
+    subnet_resource_id              = string
+    probe_protocol                  = optional(string)
+    probe_port                      = optional(number)
+    probe_interval_in_seconds       = optional(number)
+    probe_number_of_probes          = optional(number)
+    load_balancer_name              = optional(string)
+    create_public_ip_address        = optional(bool)
+    public_ip_address_resource_name = optional(string)
+    frontend_port                   = optional(number)
+    backend_port                    = optional(number)
+    # Gateway Load Balancer settings
+    gateway_load_balancer_name = optional(string)
+    internal_tunnel_port       = optional(number)
+    external_tunnel_port       = optional(number)
+    internal_tunnel_identifier = optional(number)
+    external_tunnel_identifier = optional(number)
   })
   default  = null
   nullable = true
