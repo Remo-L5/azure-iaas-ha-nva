@@ -302,8 +302,8 @@ module "slb_external" {
       port                = 80
       interval_in_seconds = 5
     },
-    probe_https_443 = {
-      name                = "probe_https_443"
+    probe_tcp_443 = {
+      name                = "probe_tcp_443"
       protocol            = "Tcp"
       port                = 443
       interval_in_seconds = 5
