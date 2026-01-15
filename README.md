@@ -10,6 +10,7 @@ This repository serves as a public reference to help others deploy their service
 
 - Terraform modules utilizing Azure Verified Modules
 - High-availability architecture with dual load balancers
+- Optional Gateway Load Balancer service chaining with HA Ports load balancing
 - Multi-zone deployment patterns
 - Comprehensive documentation and examples
 
@@ -72,6 +73,32 @@ environment     = "your-environment"
 subscription_id = "your-subscription-id"
 log_analytics_workspace_resource_id = "/subscriptions/.../workspaces/your-log-analytics"
 ```
+
+### Enabling Gateway Load Balancer Service Chaining (Optional)
+
+The module can deploy a complete Gateway Load Balancer service chaining architecture. When enabled via `service_chain_configuration`, the module provisions:
+- A **Gateway Load Balancer** with VXLAN tunnel interfaces for transparent traffic inspection
+- A **Standard Load Balancer** with public IP chained to the Gateway Load Balancer
+- A dedicated **service-chain NIC** per VM connected to the Gateway Load Balancer backend pool
+
+Below is a sample snippet you can adapt in your root configuration:
+
+```hcl
+service_chain_configuration = {
+  subnet_resource_id       = "/subscriptions/.../subnets/service-chain"
+  probe_port               = 443
+  frontend_port            = 0
+  backend_port             = 0
+  # Gateway Load Balancer settings (optional, uses defaults)
+  # gateway_load_balancer_name   = "gwlb-custom-name"
+  # internal_tunnel_port         = 10800
+  # external_tunnel_port         = 10801
+  # internal_tunnel_identifier   = 800
+  # external_tunnel_identifier   = 801
+}
+```
+
+The Gateway Load Balancer and service chain Standard Load Balancer are deployed automatically by the module. You can customize the VXLAN tunnel ports and identifiers if needed.
 
 ## License
 

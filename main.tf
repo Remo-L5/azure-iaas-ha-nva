@@ -36,7 +36,7 @@ module "nva_ha" {
   # Network Configuration
   trust_private_ip_subnet_resource_id   = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-${var.location}/providers/Microsoft.Network/virtualNetworks/vnet-hub-${var.location}/subnets/trust-subnet"
   untrust_private_ip_subnet_resource_id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-${var.location}/providers/Microsoft.Network/virtualNetworks/vnet-hub-${var.location}/subnets/untrust-subnet"
-  mgmt_private_ip_subnet_resource_id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-${var.location}/providers/Microsoft.Network/virtualNetworks/vnet-hub-${var.location}/subnets/mgmt-subnet"
+  mgmt_private_ip_subnet_resource_id    = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-${var.location}/providers/Microsoft.Network/virtualNetworks/vnet-hub-${var.location}/subnets/mgmt-subnet"
 
   # Security
   keyvault_resource_id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-core-${var.location}/providers/Microsoft.KeyVault/vaults/your-keyvault"
@@ -44,7 +44,13 @@ module "nva_ha" {
   # Monitoring and Logging
   log_analytics_workspace_resource_id = var.log_analytics_workspace_resource_id
 
-  # Optional
+  # Optional - Service Chain with Gateway Load Balancer
+  service_chain_configuration = {
+    subnet_resource_id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-hub-${var.location}/providers/Microsoft.Network/virtualNetworks/vnet-hub-${var.location}/subnets/service-chain"
+    probe_port         = 443
+    frontend_port      = 0
+    backend_port       = 0
+  }
   enable_telemetry = false
   tags = {
     Environment = var.environment

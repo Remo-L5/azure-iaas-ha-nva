@@ -65,6 +65,68 @@ variable "mgmt_private_ip_subnet_resource_id" {
   type        = string
 }
 
+variable "service_chain_configuration" {
+  description = <<DESC
+Optional configuration for deploying a Gateway Load Balancer and service chain Standard Load Balancer.
+This provisions:
+- A Gateway Load Balancer with VXLAN tunnel interfaces for traffic inspection
+- A Standard Load Balancer chained to the Gateway Load Balancer
+- A dedicated service chain NIC per VM connected to the Gateway Load Balancer backend pool
+
+Provide `null` to disable the integration.
+DESC
+  type = object({
+    subnet_resource_id              = string
+    probe_protocol                  = optional(string)
+    probe_port                      = optional(number)
+    probe_interval_in_seconds       = optional(number)
+    probe_number_of_probes          = optional(number)
+    load_balancer_name              = optional(string)
+    create_public_ip_address        = optional(bool)
+    public_ip_address_resource_name = optional(string)
+    frontend_port                   = optional(number)
+    backend_port                    = optional(number)
+    # Gateway Load Balancer settings
+    gateway_load_balancer_name = optional(string)
+    internal_tunnel_port       = optional(number)
+    external_tunnel_port       = optional(number)
+    internal_tunnel_identifier = optional(number)
+    external_tunnel_identifier = optional(number)
+  })
+  default  = null
+  nullable = true
+
+  validation {
+    condition     = var.service_chain_configuration == null || contains(["Tcp", "Http", "Https"], coalesce(try(var.service_chain_configuration.probe_protocol, null), "Tcp"))
+    error_message = "When service_chain_configuration is provided, probe_protocol must be one of Tcp, Http, or Https."
+  }
+
+  validation {
+    condition     = var.service_chain_configuration == null || ((coalesce(try(var.service_chain_configuration.probe_port, null), 80) >= 1) && (coalesce(try(var.service_chain_configuration.probe_port, null), 80) <= 65535))
+    error_message = "When service_chain_configuration is provided, probe_port must be between 1 and 65535."
+  }
+
+  validation {
+    condition     = var.service_chain_configuration == null || ((coalesce(try(var.service_chain_configuration.probe_interval_in_seconds, null), 5) >= 5) && (coalesce(try(var.service_chain_configuration.probe_interval_in_seconds, null), 5) <= 60))
+    error_message = "When service_chain_configuration is provided, probe_interval_in_seconds must be between 5 and 60 seconds."
+  }
+
+  validation {
+    condition     = var.service_chain_configuration == null || ((coalesce(try(var.service_chain_configuration.probe_number_of_probes, null), 2) >= 1) && (coalesce(try(var.service_chain_configuration.probe_number_of_probes, null), 2) <= 20))
+    error_message = "When service_chain_configuration is provided, probe_number_of_probes must be between 1 and 20."
+  }
+
+  validation {
+    condition     = var.service_chain_configuration == null || (coalesce(try(var.service_chain_configuration.frontend_port, null), 0) >= 0 && coalesce(try(var.service_chain_configuration.frontend_port, null), 0) <= 65535)
+    error_message = "When service_chain_configuration is provided, frontend_port must be between 0 and 65535 (use 0 to enable HA Ports)."
+  }
+
+  validation {
+    condition     = var.service_chain_configuration == null || (coalesce(try(var.service_chain_configuration.backend_port, null), 0) >= 0 && coalesce(try(var.service_chain_configuration.backend_port, null), 0) <= 65535)
+    error_message = "When service_chain_configuration is provided, backend_port must be between 0 and 65535 (use 0 to enable HA Ports)."
+  }
+}
+
 variable "keyvault_resource_id" {
   description = "The resource ID of the Key Vault to store the admin password"
   type        = string
