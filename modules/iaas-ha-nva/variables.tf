@@ -98,3 +98,9 @@ variable "diagnostic_log_retention_days" {
     error_message = "Diagnostic log retention days must be between 0 and 365."
   }
 }
+
+variable "use_static_ip" {
+  description = "Whether to use static IP addresses for the virtual machines"
+  type        = bool
+  default     = true
+}

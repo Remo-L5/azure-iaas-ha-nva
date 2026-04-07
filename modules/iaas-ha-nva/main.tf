@@ -1,19 +1,19 @@
 # Accept marketplace terms and conditions
-resource "azapi_resource_action" "accept_terms" {
-  type        = "Microsoft.MarketplaceOrdering/agreements@2015-06-01"
-  resource_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/agreements/${var.os_image.publisher}/${var.os_image.offer}/${var.os_image.plan}"
-  method      = "PUT"
-  body = {
-    properties = {
-      accepted = true
-    }
-  }
-  response_export_values = ["*"]
-}
+# resource "azapi_resource_action" "accept_terms" {
+#   type        = "Microsoft.MarketplaceOrdering/agreements@2015-06-01"
+#   resource_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/agreements/${var.os_image.publisher}/${var.os_image.offer}/${var.os_image.plan}"
+#   method      = "PUT"
+#   body = {
+#     properties = {
+#       accepted = true
+#     }
+#   }
+#   response_export_values = ["*"]
+# }
 
 module "naming" {
   source  = "Azure/naming/azurerm"
-  version = "~> 0.3"
+  version = "0.4.3"
   suffix  = [var.app_short_name, var.location, var.environment]
 
   depends_on = [ azapi_resource_action.accept_terms ]
@@ -28,7 +28,7 @@ module "resource_group" {
 
 module "iaas_nva" {
   source  = "Azure/avm-res-compute-virtualmachine/azurerm"
-  version = "0.19.3"
+  version = "0.20.0"
 
   for_each = var.node_configuration
 
@@ -40,18 +40,24 @@ module "iaas_nva" {
   network_interfaces = {
     trust_network_interface = {
       name = "nic-${local.component_name}-${each.value.sequence_suffix}-trust"
+      ip_forwarding_enabled = true
       ip_configurations = {
         trust_ip_config = {
           name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
+          private_ip_address_allocation = var.use_static_ip ? "Static" : "Dynamic"
+          private_ip_address            = each.value.private_ip_address != null ? each.value.private_ip_address : null
           private_ip_subnet_resource_id = var.trust_private_ip_subnet_resource_id
         }
       }
     }
     untrust_network_interface = {
       name = "nic-${local.component_name}-${each.value.sequence_suffix}-untrust"
+      ip_forwarding_enabled = true
       ip_configurations = {
         untrust_ip_config = {
           name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
+          private_ip_address_allocation = var.use_static_ip ? "Static" : "Dynamic"
+          private_ip_address            = each.value.private_ip_address != null ? each.value.private_ip_address : null
           private_ip_subnet_resource_id = var.untrust_private_ip_subnet_resource_id
         }
       }
@@ -61,6 +67,8 @@ module "iaas_nva" {
       ip_configurations = {
         mgmt_ip_config = {
           name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
+          private_ip_address_allocation = var.use_static_ip ? "Static" : "Dynamic"
+          private_ip_address            = each.value.private_ip_address != null ? each.value.private_ip_address : null
           private_ip_subnet_resource_id = var.mgmt_private_ip_subnet_resource_id
         }
       }
@@ -90,6 +98,11 @@ module "iaas_nva" {
     sku       = var.os_image.sku
     version   = var.os_image.version
   }
+  plan = {
+    name      = var.os_image.plan
+    product   = var.os_image.offer
+    publisher = var.os_image.publisher
+  }
   tags = var.tags
 
   diagnostic_settings = {
@@ -104,12 +117,20 @@ module "iaas_nva" {
 
 module "slb_external" {
   source  = "Azure/avm-res-network-loadbalancer/azurerm"
-  version = "0.4.1"
+  version = "0.5.0"
 
   location            = var.location
   name                = "slb-ext-${local.component_name}"
   resource_group_name = module.resource_group.name
   enable_telemetry    = var.enable_telemetry
+
+  public_ip_address_configuration = {
+    allocation_method                = "Static"
+    ddos_protection_mode             = "Enabled"
+    ddos_protection_plan_resource_id = null
+    sku                              = "Standard"
+    sku_tier                         = "Regional"
+  }
 
   frontend_ip_configurations = {
     frontend_configuration_1 = {
@@ -130,7 +151,7 @@ module "slb_external" {
   backend_address_pool_network_interfaces = {
     for key, vm_config in var.node_configuration : key => {
       backend_address_pool_object_name = "bepool_untrust"
-      ip_configuration_name            = "${local.component_name}-${vm_config.sequence_suffix}-untrust-ipconfig"
+      ip_configuration_name            = "${local.component_name}-${vm_config.sequence_suffix}-ipconfig"
       network_interface_resource_id    = module.iaas_nva[key].network_interfaces["untrust_network_interface"].id
     }
   }
@@ -199,7 +220,7 @@ module "slb_external" {
 
 module "slb_internal" {
   source  = "Azure/avm-res-network-loadbalancer/azurerm"
-  version = "0.4.1"
+  version = "0.5.0"
 
   location            = var.location
   name                = "slb-int-${local.component_name}"
@@ -225,7 +246,7 @@ module "slb_internal" {
   backend_address_pool_network_interfaces = {
     for key, vm_config in var.node_configuration : key => {
       backend_address_pool_object_name = "bepool_trust"
-      ip_configuration_name            = "${local.component_name}-${vm_config.sequence_suffix}-trust-ipconfig"
+      ip_configuration_name            = "${local.component_name}-${vm_config.sequence_suffix}-ipconfig"
       network_interface_resource_id    = module.iaas_nva[key].network_interfaces["trust_network_interface"].id
     }
   }
@@ -254,29 +275,17 @@ module "slb_internal" {
   }
 
   lb_rules = {
-    rule_http = {
-      name                           = "rule_http"
+    rule_ha = {
+      name                           = "high-availability-rule"
       frontend_ip_configuration_name = local.int_slb_fe_config_name
       backend_address_pool_name      = local.int_slb_be_pool_name
-      probe_object_name              = "probe_http_80"
-      protocol                       = "Tcp"
-      frontend_port                  = 80
-      backend_port                   = 80
-      floating_ip_enabled            = false
-      idle_timeout_in_minutes        = 4
-      load_distribution              = "Default"
-    }
-    rule_https = {
-      name                           = "rule_https"
-      frontend_ip_configuration_name = local.int_slb_fe_config_name
-      backend_address_pool_name      = local.int_slb_be_pool_name
-      probe_object_name              = "probe_https_443"
-      protocol                       = "Tcp"
-      frontend_port                  = 443
-      backend_port                   = 443
-      floating_ip_enabled            = false
-      idle_timeout_in_minutes        = 4
-      load_distribution              = "Default"
+      probe_object_name                 = "probe_tcp_80"
+      protocol                          = "All"
+      frontend_port                     = 0
+      backend_port                      = 0
+      enable_floating_ip                = true
+      idle_timeout_in_minutes           = 4
+      load_distribution                 = "SourceIPProtocol"
     }
   }
 

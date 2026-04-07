@@ -18,3 +18,9 @@ variable "log_analytics_workspace_resource_id" {
   type        = string
   default     = null
 }
+
+variable "use_static_ip" {
+  description = "Whether to use static IP addresses for the virtual machines"
+  type        = bool
+  default     = true
+}
