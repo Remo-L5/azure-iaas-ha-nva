@@ -1,29 +1,14 @@
-# Accept marketplace terms and conditions
-# resource "azapi_resource_action" "accept_terms" {
-#   type        = "Microsoft.MarketplaceOrdering/agreements@2015-06-01"
-#   resource_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.MarketplaceOrdering/agreements/${var.os_image.publisher}/${var.os_image.offer}/${var.os_image.plan}"
-#   method      = "PUT"
-#   body = {
-#     properties = {
-#       accepted = true
-#     }
-#   }
-#   response_export_values = ["*"]
-# }
-
 module "naming" {
   source  = "Azure/naming/azurerm"
   version = "0.4.3"
   suffix  = [var.app_short_name, var.location, var.environment]
-
-  depends_on = [ azapi_resource_action.accept_terms ]
 }
 
 module "resource_group" {
   source   = "Azure/avm-res-resources-resourcegroup/azurerm"
   version  = "0.2.1"
   location = var.location
-  name     = module.naming.resource_group.name_unique
+  name     = module.naming.resource_group.name
 }
 
 module "iaas_nva" {
@@ -32,54 +17,46 @@ module "iaas_nva" {
 
   for_each = var.node_configuration
 
-  location            = var.location
-  resource_group_name = module.resource_group.name
-  name                = "${local.vm_name_base_name}-${each.value.sequence_suffix}"
-  zone                = each.value.availability_zone
+  location                               = var.location
+  resource_group_name                    = module.resource_group.name
+  name                                   = "${local.vm_name_base_name}-${each.value.sequence_suffix}"
+  zone                                   = each.value.availability_zone
+  capacity_reservation_group_resource_id = var.capacity_reservation_group_resource_id
 
   network_interfaces = {
     trust_network_interface = {
-      name = "nic-${local.component_name}-${each.value.sequence_suffix}-trust"
+      name                  = "nic-${local.component_name}-${each.value.sequence_suffix}-trust"
+      tags                  = local.network_interface_tags.trust_network_interface
       ip_forwarding_enabled = true
-      ip_configurations = {
-        trust_ip_config = {
-          name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
-          private_ip_address_allocation = var.use_static_ip ? "Static" : "Dynamic"
-          private_ip_address            = each.value.private_ip_address != null ? each.value.private_ip_address : null
-          private_ip_subnet_resource_id = var.trust_private_ip_subnet_resource_id
-        }
-      }
+      ip_configurations     = local.ip_configurations[each.key].trust_network_interface
     }
     untrust_network_interface = {
-      name = "nic-${local.component_name}-${each.value.sequence_suffix}-untrust"
+      name                  = "nic-${local.component_name}-${each.value.sequence_suffix}-untrust"
+      tags                  = local.network_interface_tags.untrust_network_interface
       ip_forwarding_enabled = true
-      ip_configurations = {
-        untrust_ip_config = {
-          name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
-          private_ip_address_allocation = var.use_static_ip ? "Static" : "Dynamic"
-          private_ip_address            = each.value.private_ip_address != null ? each.value.private_ip_address : null
-          private_ip_subnet_resource_id = var.untrust_private_ip_subnet_resource_id
-        }
-      }
+      ip_configurations     = local.ip_configurations[each.key].untrust_network_interface
     }
     mgmt_network_interface = {
-      name = "nic-${local.component_name}-${each.value.sequence_suffix}-mgmt"
-      ip_configurations = {
-        mgmt_ip_config = {
-          name                          = "${local.component_name}-${each.value.sequence_suffix}-ipconfig"
-          private_ip_address_allocation = var.use_static_ip ? "Static" : "Dynamic"
-          private_ip_address            = each.value.private_ip_address != null ? each.value.private_ip_address : null
-          private_ip_subnet_resource_id = var.mgmt_private_ip_subnet_resource_id
-        }
-      }
+      name              = "nic-${local.component_name}-${each.value.sequence_suffix}-mgmt"
+      tags              = local.network_interface_tags.mgmt_network_interface
+      ip_configurations = local.ip_configurations[each.key].mgmt_network_interface
     }
+  }
+
+  public_ip_configuration_details = {
+    ddos_protection_mode = "Enabled"
+  }
+
+  managed_identities = {
+    system_assigned            = var.enable_system_identity
+    user_assigned_resource_ids = var.managed_identity_resource_ids
   }
 
   account_credentials = {
     key_vault_configuration = {
       resource_id = var.keyvault_resource_id
       secret_configuration = {
-        name = "azureuser-${local.component_name}-${each.value.sequence_suffix}"
+        name = "${local.component_name}-${each.value.sequence_suffix}-password"
       }
     }
     password_authentication_disabled = false
@@ -118,6 +95,8 @@ module "iaas_nva" {
 module "slb_external" {
   source  = "Azure/avm-res-network-loadbalancer/azurerm"
   version = "0.5.0"
+  count   = var.enable_load_balancing ? 1 : 0
+
 
   location            = var.location
   name                = "slb-ext-${local.component_name}"
@@ -163,46 +142,44 @@ module "slb_external" {
       port                = 22
       interval_in_seconds = 5
     },
-    probe_http_80 = {
-      name                = "probe_http_80"
-      protocol            = "Http"
+    probe_tcp_80 = {
+      name                = "probe_tcp_80"
+      protocol            = "Tcp"
       port                = 80
-      request_path        = "/health"
       interval_in_seconds = 5
     },
-    probe_https_443 = {
-      name                = "probe_https_443"
-      protocol            = "Https"
+    probe_tcp_443 = {
+      name                = "probe_tcp_443"
+      protocol            = "Tcp"
       port                = 443
-      request_path        = "/health"
       interval_in_seconds = 5
     }
   }
 
   lb_rules = {
     rule_http = {
-      name                           = "rule_http"
-      frontend_ip_configuration_name = local.ext_slb_fe_config_name
-      backend_address_pool_name      = local.ext_slb_be_pool_name
-      probe_object_name              = "probe_http_80"
-      protocol                       = "Tcp"
-      frontend_port                  = 80
-      backend_port                   = 80
-      floating_ip_enabled            = false
-      idle_timeout_in_minutes        = 4
-      load_distribution              = "Default"
+      name                              = "rule_http"
+      frontend_ip_configuration_name    = local.ext_slb_fe_config_name
+      backend_address_pool_object_names = ["bepool_untrust"]
+      probe_object_name                 = "probe_tcp_80"
+      protocol                          = "Tcp"
+      frontend_port                     = 80
+      backend_port                      = 80
+      floating_ip_enabled               = false
+      idle_timeout_in_minutes           = 4
+      load_distribution                 = "Default"
     }
     rule_https = {
-      name                           = "rule_https"
-      frontend_ip_configuration_name = local.ext_slb_fe_config_name
-      backend_address_pool_name      = local.ext_slb_be_pool_name
-      probe_object_name              = "probe_https_443"
-      protocol                       = "Tcp"
-      frontend_port                  = 443
-      backend_port                   = 443
-      floating_ip_enabled            = false
-      idle_timeout_in_minutes        = 4
-      load_distribution              = "Default"
+      name                              = "rule_https"
+      frontend_ip_configuration_name    = local.ext_slb_fe_config_name
+      backend_address_pool_object_names = ["bepool_untrust"]
+      probe_object_name                 = "probe_tcp_443"
+      protocol                          = "Tcp"
+      frontend_port                     = 443
+      backend_port                      = 443
+      floating_ip_enabled               = false
+      idle_timeout_in_minutes           = 4
+      load_distribution                 = "Default"
     }
   }
 
@@ -221,6 +198,8 @@ module "slb_external" {
 module "slb_internal" {
   source  = "Azure/avm-res-network-loadbalancer/azurerm"
   version = "0.5.0"
+  count   = var.enable_load_balancing ? 1 : 0
+
 
   location            = var.location
   name                = "slb-int-${local.component_name}"
@@ -258,27 +237,25 @@ module "slb_internal" {
       port                = 22
       interval_in_seconds = 5
     },
-    probe_http_80 = {
-      name                = "probe_http_80"
-      protocol            = "Http"
+    probe_tcp_80 = {
+      name                = "probe_tcp_80"
+      protocol            = "Tcp"
       port                = 80
-      request_path        = "/health"
       interval_in_seconds = 5
     },
-    probe_https_443 = {
-      name                = "probe_https_443"
-      protocol            = "Https"
+    probe_tcp_443 = {
+      name                = "probe_tcp_443"
+      protocol            = "Tcp"
       port                = 443
-      request_path        = "/health"
       interval_in_seconds = 5
     }
   }
 
   lb_rules = {
-    rule_ha = {
-      name                           = "high-availability-rule"
-      frontend_ip_configuration_name = local.int_slb_fe_config_name
-      backend_address_pool_name      = local.int_slb_be_pool_name
+    rule_all = {
+      name                              = "rule_all"
+      frontend_ip_configuration_name    = local.int_slb_fe_config_name
+      backend_address_pool_object_names = ["bepool_trust"]
       probe_object_name                 = "probe_tcp_80"
       protocol                          = "All"
       frontend_port                     = 0
@@ -301,8 +278,81 @@ module "slb_internal" {
 
 }
 
-# Data Collection Rule for VM Performance Monitoring
+# Data Collection Rule for VM Performance Monitoring (Linux)
 resource "azurerm_monitor_data_collection_rule" "vm_performance" {
+  count               = var.os_type == "Linux" ? 1 : 0
+  name                = "dcr-vmperf-${local.component_name}"
+  resource_group_name = module.resource_group.name
+  location            = var.location
+  tags                = var.tags
+
+  destinations {
+    log_analytics {
+      workspace_resource_id = var.log_analytics_workspace_resource_id
+      name                  = "log-analytics-dest"
+    }
+  }
+
+  data_flow {
+    streams      = ["Microsoft-Perf", "Microsoft-InsightsMetrics"]
+    destinations = ["log-analytics-dest"]
+  }
+
+  data_sources {
+    performance_counter {
+      streams                       = ["Microsoft-Perf", "Microsoft-InsightsMetrics"]
+      sampling_frequency_in_seconds = 60
+      counter_specifiers = [
+        # CPU metrics
+        "Processor(*)\\% Processor Time",
+        "Processor(*)\\% Idle Time",
+        "Processor(*)\\% User Time",
+        "Processor(*)\\% Nice Time",
+        "Processor(*)\\% Privileged Time",
+        "Processor(*)\\% IO Wait Time",
+        "Processor(*)\\% Interrupt Time",
+        # Memory metrics
+        "Memory(*)\\Available MBytes Memory",
+        "Memory(*)\\% Available Memory",
+        "Memory(*)\\Used Memory MBytes",
+        "Memory(*)\\% Used Memory",
+        "Memory(*)\\Pages/sec",
+        "Memory(*)\\Page Reads/sec",
+        "Memory(*)\\Page Writes/sec",
+        "Memory(*)\\Available MBytes Swap",
+        "Memory(*)\\% Available Swap Space",
+        "Memory(*)\\Used MBytes Swap Space",
+        "Memory(*)\\% Used Swap Space",
+        # Disk metrics
+        "Logical Disk(*)\\% Free Inodes",
+        "Logical Disk(*)\\% Used Inodes",
+        "Logical Disk(*)\\Free Megabytes",
+        "Logical Disk(*)\\% Free Space",
+        "Logical Disk(*)\\% Used Space",
+        "Logical Disk(*)\\Logical Disk Bytes/sec",
+        "Logical Disk(*)\\Disk Read Bytes/sec",
+        "Logical Disk(*)\\Disk Write Bytes/sec",
+        "Logical Disk(*)\\Disk Transfers/sec",
+        "Logical Disk(*)\\Disk Reads/sec",
+        "Logical Disk(*)\\Disk Writes/sec",
+        # Network metrics
+        "Network(*)\\Total Bytes Transmitted",
+        "Network(*)\\Total Bytes Received",
+        "Network(*)\\Total Bytes",
+        "Network(*)\\Total Packets Transmitted",
+        "Network(*)\\Total Packets Received",
+        "Network(*)\\Total Rx Errors",
+        "Network(*)\\Total Tx Errors",
+        "Network(*)\\Total Collisions"
+      ]
+      name = "perfCounterDataSource60"
+    }
+  }
+}
+
+# Data Collection Rule for VM Performance Monitoring (Windows)
+resource "azurerm_monitor_data_collection_rule" "vm_performance_windows" {
+  count               = var.os_type == "Windows" ? 1 : 0
   name                = "dcr-vmperf-${local.component_name}"
   resource_group_name = module.resource_group.name
   location            = var.location
@@ -343,8 +393,6 @@ resource "azurerm_monitor_data_collection_rule" "vm_performance" {
         "\\Memory\\Pool Nonpaged Bytes",
         "\\Memory\\Pages/sec",
         "\\Memory\\Page Faults/sec",
-        "\\Memory\\Page Reads/sec",
-        "\\Memory\\Page Writes/sec",
         "\\LogicalDisk(_Total)\\% Disk Time",
         "\\LogicalDisk(_Total)\\% Disk Read Time",
         "\\LogicalDisk(_Total)\\% Disk Write Time",
@@ -355,12 +403,6 @@ resource "azurerm_monitor_data_collection_rule" "vm_performance" {
         "\\LogicalDisk(_Total)\\Disk Transfers/sec",
         "\\LogicalDisk(_Total)\\Disk Reads/sec",
         "\\LogicalDisk(_Total)\\Disk Writes/sec",
-        "\\LogicalDisk(_Total)\\Avg. Disk sec/Transfer",
-        "\\LogicalDisk(_Total)\\Avg. Disk sec/Read",
-        "\\LogicalDisk(_Total)\\Avg. Disk sec/Write",
-        "\\LogicalDisk(_Total)\\Avg. Disk Queue Length",
-        "\\LogicalDisk(_Total)\\Avg. Disk Read Queue Length",
-        "\\LogicalDisk(_Total)\\Avg. Disk Write Queue Length",
         "\\LogicalDisk(_Total)\\% Free Space",
         "\\LogicalDisk(_Total)\\Free Megabytes",
         "\\Network Interface(*)\\Bytes Total/sec",
@@ -383,5 +425,5 @@ resource "azurerm_monitor_data_collection_rule_association" "vm_dcr_association"
 
   name                    = "dcra-vm-${each.value.sequence_suffix}"
   target_resource_id      = module.iaas_nva[each.key].resource_id
-  data_collection_rule_id = azurerm_monitor_data_collection_rule.vm_performance.id
+  data_collection_rule_id = var.os_type == "Linux" ? azurerm_monitor_data_collection_rule.vm_performance[0].id : azurerm_monitor_data_collection_rule.vm_performance_windows[0].id
 }

@@ -1,5 +1,5 @@
 module "nva_ha" {
-  source = "./modules/iaas-ha-nva"
+  source = "../../modules/iaas-ha-nva"
 
   # Basic Configuration
   subscription_id = var.subscription_id

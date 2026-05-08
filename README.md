@@ -32,28 +32,17 @@ az provider register --namespace Microsoft.Compute
 
 ### Marketplace Agreement
 
-The Terraform configuration includes automated marketplace agreement acceptance for the Palo Alto VM-Series image. **This code has been updated to use the correct AzAPI v2.x syntax but has not been fully tested yet.**
+Most NVA images (e.g., Palo Alto VM-Series, F5 Big-IP, Cisco, Check Point) require accepting marketplace terms before they can be deployed. Marketplace terms **must be accepted manually** before running `terraform apply`.
 
-> **⚠️ NOTE**: If the automated acceptance fails during deployment, please manually accept the terms using one of the methods below before running `terraform apply`.
+See the relevant example for vendor-specific commands:
 
-**Manual Acceptance - PowerShell:**
+- [Palo Alto VM-Series (active-active)](examples/active-active/README.md)
+- [F5 Big-IP (active-standby)](examples/active-standby/README.md)
 
-```powershell
-# Accept Palo Alto VM-Series marketplace terms
-Set-AzMarketplaceTerms -Publisher "paloaltonetworks" -Product "vmseries-flex" -Name "byol" -Accept
-
-# Verify the agreement was accepted
-Get-AzMarketplaceTerms -Publisher "paloaltonetworks" -Product "vmseries-flex" -Name "byol"
-```
-
-**Manual Acceptance - Azure CLI:**
+For any other image, refer to the publisher/offer/sku values you set in the `os_image` variable and run:
 
 ```bash
-# Accept marketplace terms
-az vm image terms accept --publisher paloaltonetworks --offer vmseries-flex --plan byol
-
-# Verify the agreement was accepted
-az vm image terms show --publisher paloaltonetworks --offer vmseries-flex --plan byol
+az vm image terms accept --publisher <publisher> --offer <offer> --plan <plan>
 ```
 
 ## Getting Started

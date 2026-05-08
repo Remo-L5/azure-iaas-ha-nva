@@ -20,16 +20,16 @@ output "trust_network_interfaces" {
 
 output "external_load_balancer" {
   description = "External load balancer information"
-  value = {
-    id   = module.slb_external.resource_id
-    name = module.slb_external.name
-  }
+  value = var.enable_load_balancing ? {
+    id   = module.slb_external[0].resource_id
+    name = module.slb_external[0].name
+  } : null
 }
 
 output "internal_load_balancer" {
   description = "Internal load balancer information"
-  value = {
-    id   = module.slb_internal.resource_id
-    name = module.slb_internal.name
-  }
+  value = var.enable_load_balancing ? {
+    id   = module.slb_internal[0].resource_id
+    name = module.slb_internal[0].name
+  } : null
 }
